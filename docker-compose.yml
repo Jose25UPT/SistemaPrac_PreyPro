@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: db_practicas
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: db_practicas
+      MYSQL_USER: user_practicas
+      MYSQL_PASSWORD: userpassword
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "user_practicas", "-puserpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: backend_practicas
+    command: python app.py
+    volumes:
+      - ./backend:/app
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: db
+      DB_USER: user_practicas
+      DB_PASSWORD: userpassword
+      DB_NAME: db_practicas
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    container_name: frontend_practicas
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - app_network
+    restart: unless-stopped
+
+volumes:
+  db_data:
+
+networks:
+  app_network:
+    driver: bridge
